@@ -54,6 +54,7 @@ import { canShareFile, shareFile } from '@/platform/web_file_share'
 import storage from '@/storage'
 import { getMetaStorage, recoverSessionList } from '@/stores/chatStore'
 import { migrateOnData } from '@/stores/migration'
+import { importSessionFromJson } from '@/stores/sessionHelpers'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUIStore } from '@/stores/uiStore'
 
@@ -443,6 +444,11 @@ export function RouteComponent() {
 
       {/* import and export data */}
       <ImportExportDataSection />
+
+      <Divider />
+
+      {/* import single session */}
+      <ImportSessionSection />
 
       <Divider />
 
@@ -973,6 +979,69 @@ enum ExportDataItem {
   Key = 'key',
   Conversations = 'conversations',
   Copilot = 'copilot',
+}
+
+const ImportSessionSection = () => {
+  const { t } = useTranslation()
+  const [isImporting, setIsImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ success: boolean; message?: string } | null>(null)
+
+  const handleImport = async (file: File | null) => {
+    if (!file) return
+
+    setIsImporting(true)
+    setImportResult(null)
+
+    try {
+      const result = await importSessionFromJson(file)
+
+      if (result.success) {
+        setImportResult({
+          success: true,
+          message: t('Session "{{name}}" imported successfully', { name: result.session?.name }) as string,
+        })
+      } else {
+        setImportResult({
+          success: false,
+          message: result.error || t('Unknown error') as string,
+        })
+      }
+    } catch (error) {
+      setImportResult({
+        success: false,
+        message: (error instanceof Error ? error.message : t('Unknown error')) as string,
+      })
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  return (
+    <Stack gap="lg">
+      <Stack gap="xxs">
+        <Title order={5}>{t('Import Session')}</Title>
+        <Text c="chatbox-tertiary">{t('Import a single conversation from a .chatbox.json file')}</Text>
+      </Stack>
+      {importResult && (
+        <Alert
+          className="self-start"
+          variant="light"
+          color={importResult.success ? 'green' : 'red'}
+          title={importResult.success ? t('Import Successful') : t('Import Failed')}
+          icon={<IconInfoCircle />}
+        >
+          <Text size="sm">{importResult.message}</Text>
+        </Alert>
+      )}
+      <FileButton accept=".chatbox.json,application/json" onChange={handleImport} disabled={isImporting}>
+        {(props) => (
+          <Button {...props} className="self-start" disabled={isImporting} loading={isImporting}>
+            {isImporting ? t('Importing...') : t('Import Session')}
+          </Button>
+        )}
+      </FileButton>
+    </Stack>
+  )
 }
 
 const ExportLogsSection = () => {

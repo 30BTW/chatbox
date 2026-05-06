@@ -1,11 +1,14 @@
 import { isSessionAttachmentRagSupportedFilePath, isSupportedFile, isTextFilePath } from '@shared/file-extensions'
 import { EMPTY_ATTACHMENT_CONTENT_ERROR, NON_RECOVERABLE_LOCAL_PARSER_ERROR_CODES } from '@shared/file-parse-errors'
 import { searchSessionMessages } from '@shared/services/native-session-search'
+import { v4 as uuidv4 } from 'uuid'
 import type {
   ExportChatFormat,
   ExportChatScope,
   Session,
+  SessionExportData,
   SessionMeta,
+  SessionMetaRecord,
   SessionSettings,
   SessionThread,
   SessionThreadBrief,
@@ -25,12 +28,21 @@ import platform from '@/platform'
 import storage from '@/storage'
 import { StorageKey, StorageKeyGenerator } from '@/storage/StoreStorage'
 import { authInfoStore } from '@/stores/authInfoStore'
-import { getMetaStorage } from '@/stores/chatStore'
+import { getMetaStorage, updateSessionListData } from '@/stores/chatStore'
+import { sortSessionRecords } from '@/storage/SessionMetaStorage'
 import { reportError } from '@/utils/sentry'
 import { migrateSession, sortSessions } from '@/utils/session-utils'
 import * as defaults from '../../shared/defaults'
 import { SESSION_ATTACHMENT_RAG_LOG_PREFIX } from '../../shared/session-attachment-rag/logging'
-import { createMessage, type Message, SessionSettingsSchema, TOKEN_CACHE_KEYS } from '../../shared/types'
+import {
+  copyMessagesWithMapping,
+  copyThreads,
+  createMessage,
+  type Message,
+  SESSION_EXPORT_VERSION,
+  SessionSettingsSchema,
+  TOKEN_CACHE_KEYS,
+} from '../../shared/types'
 import type { AttachmentPreparationResult, PreprocessedFile } from '../types/input-box'
 import { resolveChatboxLicenseDefaultModel } from './defaultChatModel'
 import { lastUsedModelStore } from './lastUsedModelStore'
@@ -953,7 +965,9 @@ export async function exportChat(session: Session, scope: ExportChatScope, forma
     createdAt: Date.now(),
   })
 
-  if (format === 'Markdown') {
+  if (format === 'JSON') {
+    await exportSessionAsJson(session, scope)
+  } else if (format === 'Markdown') {
     const content = formatChatAsMarkdown(session.name, threads)
     platform.exporter.exportTextFile(`${session.name}.md`, content)
   } else if (format === 'TXT') {
@@ -962,6 +976,84 @@ export async function exportChat(session: Session, scope: ExportChatScope, forma
   } else if (format === 'HTML') {
     const content = await formatChatAsHtml(session.name, threads)
     platform.exporter.exportTextFile(`${session.name}.html`, content)
+  }
+}
+
+export async function exportSessionAsJson(session: Session, scope: ExportChatScope = 'all_threads') {
+  let sessionToExport: Session
+
+  if (scope === 'current_thread') {
+    // Only export current thread (remove threads array)
+    sessionToExport = {
+      ...session,
+      threads: undefined,
+    }
+  } else {
+    // Export full session with all threads
+    sessionToExport = session
+  }
+
+  const exportData: SessionExportData = {
+    __version: SESSION_EXPORT_VERSION,
+    __exported_at: new Date().toISOString(),
+    __source: 'chatbox',
+    session: sessionToExport,
+  }
+
+  const safeName = session.name.replace(/[\\/:\*?"<>|]/g, '_').substring(0, 200)
+  const content = JSON.stringify(exportData, null, 2)
+  await platform.exporter.exportTextFile(`${safeName}.chatbox.json`, content)
+}
+
+export interface ImportSessionResult {
+  success: boolean
+  session?: Session
+  error?: string
+}
+
+export async function importSessionFromJson(file: File): Promise<ImportSessionResult> {
+  try {
+    const content = await file.text()
+    const data: SessionExportData = JSON.parse(content)
+
+    // Validate file format
+    if (data.__source !== 'chatbox') {
+      return { success: false, error: 'Invalid export file format' }
+    }
+    if (data.__version > SESSION_EXPORT_VERSION) {
+      return { success: false, error: 'Export file version is too new' }
+    }
+
+    // Migrate data
+    const migratedSession = migrateSession(data.session)
+
+    // Generate new IDs to avoid conflicts
+    const { messages } = copyMessagesWithMapping(migratedSession.messages)
+    const newSession: Session = {
+      ...migratedSession,
+      id: uuidv4(),
+      messages,
+      threads: copyThreads(migratedSession.threads),
+      name: `${migratedSession.name} (imported)`,
+    }
+
+    // Save session
+    await storage.setItemNow(StorageKeyGenerator.session(newSession.id), newSession)
+
+    // Update session list using the proper function to trigger UI refresh
+    const metaStorage = await getMetaStorage()
+    const record: SessionMetaRecord = {
+      ...getSessionMeta(newSession),
+      sortOrder: Date.now(),
+      createdAt: Date.now(),
+    }
+    await metaStorage.create(record)
+    updateSessionListData((items) => sortSessionRecords([...items, record]))
+
+    return { success: true, session: newSession }
+  } catch (e) {
+    log.error('Failed to import session:', e)
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
   }
 }
 
