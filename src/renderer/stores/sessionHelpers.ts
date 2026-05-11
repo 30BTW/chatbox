@@ -25,6 +25,7 @@ import * as localParser from '@/packages/local-parser'
 import * as remote from '@/packages/remote'
 import { estimateTokens } from '@/packages/token'
 import platform from '@/platform'
+import { router } from '@/router'
 import storage from '@/storage'
 import { StorageKey, StorageKeyGenerator } from '@/storage/StoreStorage'
 import { authInfoStore } from '@/stores/authInfoStore'
@@ -1049,6 +1050,9 @@ export async function importSessionFromJson(file: File): Promise<ImportSessionRe
     }
     await metaStorage.create(record)
     updateSessionListData((items) => sortSessionRecords([...items, record]))
+
+    // Navigate to the newly imported session
+    router.navigate({ to: '/session/$sessionId', params: { sessionId: newSession.id } })
 
     return { success: true, session: newSession }
   } catch (e) {

@@ -6,6 +6,7 @@ import {
   IconCopy,
   IconDeviceFloppy,
   IconDots,
+  IconFileImport,
   IconHistory,
   IconId,
   IconSearch,
@@ -20,6 +21,7 @@ import { router } from '@/router'
 import * as atoms from '@/stores/atoms'
 import { confirmSessionDeletion, deleteSession, getSession } from '@/stores/chatStore'
 import { clear as clearSession, copyAndSwitchSession } from '@/stores/sessionActions'
+import { importSessionFromJson } from '@/stores/sessionHelpers'
 import * as toastActions from '@/stores/toastActions'
 import { useUIStore } from '@/stores/uiStore'
 import ActionMenu from '../ActionMenu'
@@ -44,6 +46,21 @@ export default function Toolbar({ sessionId }: { sessionId: string }) {
 
   const handleExportAndSave = () => {
     NiceModal.show('export-chat')
+  }
+  const handleImportChat = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.chatbox.json,application/json'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        const result = await importSessionFromJson(file)
+        if (!result.success) {
+          console.error('Import failed:', result.error)
+        }
+      }
+    }
+    input.click()
   }
   const handleSessionClean = () => {
     void clearSession(sessionId)
@@ -138,6 +155,11 @@ export default function Toolbar({ sessionId }: { sessionId: string }) {
             icon: IconDeviceFloppy,
             onClick: handleExportAndSave,
           },
+          {
+            text: t('Import Chat'),
+            icon: IconFileImport,
+            onClick: handleImportChat,
+          },
           ...(process.env.NODE_ENV === 'development'
             ? [
                 {
@@ -202,6 +224,11 @@ export default function Toolbar({ sessionId }: { sessionId: string }) {
             text: t('Export Chat'),
             icon: IconDeviceFloppy,
             onClick: handleExportAndSave,
+          },
+          {
+            text: t('Import Chat'),
+            icon: IconFileImport,
+            onClick: handleImportChat,
           },
           ...(process.env.NODE_ENV === 'development'
             ? [
