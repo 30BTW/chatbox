@@ -5,6 +5,7 @@ export {
   clearConversationList,
   copyAndSwitchSession,
   createEmpty,
+  createSessionFromMessages,
   reorderSessions,
   switchCurrentSession,
   switchToIndex,
@@ -13,12 +14,15 @@ export {
 // Re-export export operations from session/export.ts
 export { exportSessionChat } from './session/export'
 // Re-export fork operations from session/forks.ts
-export { createNewFork, deleteFork, expandFork, switchFork, switchForkTo } from './session/forks'
-// Re-export generation operations from session module
+export { createNewFork, deleteFork, expandFork, findMessageLocation, switchFork, switchForkTo } from './session/forks'
+// Re-export generation operations from session/generation.ts
 export {
+  acceptParallelOutputSlot,
+  createLoadingPictures,
   generate,
   generateMore,
   generateMoreInNewFork,
+  generateParallelOutput,
   genMessageContext,
   getMessageThreadContext,
   getSessionWebBrowsing,

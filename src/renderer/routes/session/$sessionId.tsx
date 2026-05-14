@@ -13,6 +13,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import InputBox, { type InputBoxPayload } from '@/components/InputBox/InputBox'
 import Header from '@/components/layout/Header'
 import Page from '@/components/layout/Page'
+import { ParallelOutputView } from '@/components/ParallelOutputView'
 import ThreadHistoryDrawer from '@/components/session/ThreadHistoryDrawer'
 import { useProviders } from '@/hooks/useProviders'
 import { useIsSmallScreen } from '@/hooks/useScreenChange'
@@ -29,6 +30,9 @@ import {
   getGenerationControlMessages,
 } from '@/stores/session/generation-state'
 import {
+  acceptParallelOutputSlot,
+  generateParallelOutput,
+  insertMessage,
   modifyMessage,
   removeCurrentThread,
   removeMessage,
@@ -37,8 +41,8 @@ import {
   submitNewUserMessage,
 } from '@/stores/sessionActions'
 import { clearSessionActivity } from '@/stores/sessionActivityStore'
-import { useSettingsStore } from '@/stores/settingsStore'
-import { useUIStore } from '@/stores/uiStore'
+import { useSettingsStore, settingsStore } from '@/stores/settingsStore'
+import { useUIStore, uiStore } from '@/stores/uiStore'
 import { getHomeWelcomeCardMode } from '@/utils/homeWelcomeCard'
 
 export const Route = createFileRoute('/session/$sessionId')({
@@ -206,6 +210,33 @@ function RouteComponent() {
           .catch((error) => console.warn('[recordCopilotUsage] failed', error))
       }
 
+      // Check if parallel output mode is enabled
+      const parallelMode = uiStore.getState().inputBoxParallelMode
+      if (parallelMode && needGenerating) {
+        const globalSettings = settingsStore.getState().getSettings()
+        const parallelCount = globalSettings.parallelOutputCount ?? 3
+        const parallelInterval = globalSettings.parallelOutputInterval ?? 0
+
+        // Insert user message first
+        onUserMessageReady?.()
+        await insertMessage(currentSession.id, constructedMessage)
+
+        // Get context messages for parallel generation
+        const session = await import('@/stores/chatStore').then((m) => m.getSession(currentSession.id))
+        if (!session) return
+        const contextMessages = session.messages
+
+        // Start parallel output
+        void generateParallelOutput(currentSession.id, contextMessages, {
+          count: parallelCount,
+          interval: parallelInterval,
+        })
+
+        // Turn off parallel mode after use
+        uiStore.getState().setInputBoxParallelMode(false)
+        return
+      }
+
       await submitNewUserMessage(currentSession.id, {
         newUserMsg: constructedMessage,
         needGenerating,
@@ -235,6 +266,15 @@ function RouteComponent() {
     })
     return true
   }, [currentSession, generatingMessages])
+
+  // Parallel output state
+  const parallelOutputState = useUIStore((s) => s.parallelOutputMap[currentSessionId])
+  const handleAcceptParallelSlot = useCallback(
+    (index: number) => {
+      void acceptParallelOutputSlot(currentSessionId, index)
+    },
+    [currentSessionId]
+  )
 
   const model = useMemo(() => {
     if (!currentSessionWithDefaultModel?.settings?.modelId || !currentSessionWithDefaultModel?.settings?.provider) {
@@ -282,6 +322,12 @@ function RouteComponent() {
 
         {/* <ScrollButtons /> */}
         <ErrorBoundary name="session-inputbox">
+          {/* Parallel Output View - above InputBox */}
+          {parallelOutputState && (
+            <div className="max-w-4xl mx-auto px-4 pb-2">
+              <ParallelOutputView state={parallelOutputState} onAccept={handleAcceptParallelSlot} />
+            </div>
+          )}
           <InputBox
             key={`input-box${currentSession.id}`}
             sessionId={currentSession.id}

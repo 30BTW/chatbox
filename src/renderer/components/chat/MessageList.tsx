@@ -95,6 +95,7 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
   const { t } = useTranslation()
   const isSmallScreen = useIsSmallScreen()
   const widthFull = useUIStore((s) => s.widthFull)
+  const parallelOutputState = useUIStore((s) => s.parallelOutputMap[props.currentSession.id])
 
   const { currentSession } = props
 
@@ -102,7 +103,17 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
     () => currentSession && getCurrentThreadHistoryHash(currentSession),
     [currentSession]
   )
-  const currentMessageList = useMemo(() => getAllMessageList(currentSession), [currentSession])
+  const allMessages = useMemo(() => getAllMessageList(currentSession), [currentSession])
+
+  // Filter out parallel output messages when parallel output is active
+  const currentMessageList = useMemo(() => {
+    if (parallelOutputState) {
+      // Hide messages that are part of the current parallel output
+      return allMessages.filter((msg) => !msg.parallelOutputId)
+    }
+    return allMessages
+  }, [allMessages, parallelOutputState])
+
   const generationControlMessages = useMemo(() => getGenerationControlMessages(currentSession), [currentSession])
   const generatingReplyCount = useMemo(
     () => countCancellableGeneratingAssistantMessages(generationControlMessages),

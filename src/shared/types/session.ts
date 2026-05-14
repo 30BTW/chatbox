@@ -331,6 +331,9 @@ export const MessageSchema = z.object({
   isSummary: z.boolean().optional(), // Marks message as a compaction summary
   isForkMarker: z.boolean().optional(), // Marks a UI-only fork boundary message
   forkedFromSessionId: z.string().optional(),
+  // Parallel output markers
+  parallelOutputId: z.string().optional(), // Groups messages from same parallel output
+  parallelOutputIndex: z.number().optional(), // Index within parallel output group
 })
 
 // Compaction point schema (for context management)

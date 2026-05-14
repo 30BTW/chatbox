@@ -1,4 +1,4 @@
-import type { AgentModeEntry, KnowledgeBase, MessagePicture, Toast } from '@shared/types'
+import type { AgentModeEntry, KnowledgeBase, MessagePicture, ParallelOutputState, Toast } from '@shared/types'
 import type { RefObject } from 'react'
 import type { VirtuosoHandle } from 'react-virtuoso'
 import { v4 as uuidv4 } from 'uuid'
@@ -58,6 +58,10 @@ export const uiStore = createStore(
         sidebarWidth: null as number | null, // Custom sidebar width, null means use default
         agentModeSmartSwitchingDefault: true,
         sessionAgentModeMap: {} as Record<string, AgentModeEntry>,
+
+        // Parallel output state
+        inputBoxParallelMode: false,
+        parallelOutputMap: {} as Record<string, ParallelOutputState>,
       },
       (set, get) => ({
         addToast: (content: string, duration?: number, action?: Toast['action']) => {
@@ -226,6 +230,71 @@ export const uiStore = createStore(
           } else {
             set({ sessionAgentModeMap: {} })
           }
+        },
+
+        // Parallel output operations
+        setInputBoxParallelMode: (inputBoxParallelMode: boolean) => {
+          set({ inputBoxParallelMode })
+        },
+
+        startParallelOutput: (sessionId: string, parentMessageId: string, count: number) => {
+          const slots = Array.from({ length: count }, (_, i) => ({
+            index: i,
+            message: null,
+            status: i === 0 ? 'generating' : 'waiting',
+          } as const))
+          set((state) => ({
+            parallelOutputMap: {
+              ...state.parallelOutputMap,
+              [sessionId]: {
+                sessionId,
+                parentMessageId,
+                slots,
+                selectedIndex: null,
+                createdAt: Date.now(),
+              },
+            },
+          }))
+        },
+
+        updateParallelSlot: (sessionId: string, index: number, updates: Partial<ParallelOutputState['slots'][0]>) => {
+          set((state) => {
+            const parallelState = state.parallelOutputMap[sessionId]
+            if (!parallelState) return state
+            const newSlots = [...parallelState.slots]
+            newSlots[index] = { ...newSlots[index], ...updates }
+            return {
+              parallelOutputMap: {
+                ...state.parallelOutputMap,
+                [sessionId]: { ...parallelState, slots: newSlots },
+              },
+            }
+          })
+        },
+
+        selectParallelSlot: (sessionId: string, index: number) => {
+          set((state) => {
+            const parallelState = state.parallelOutputMap[sessionId]
+            if (!parallelState) return state
+            return {
+              parallelOutputMap: {
+                ...state.parallelOutputMap,
+                [sessionId]: { ...parallelState, selectedIndex: index },
+              },
+            }
+          })
+        },
+
+        cancelParallelOutput: (sessionId: string) => {
+          set((state) => {
+            const newMap = { ...state.parallelOutputMap }
+            delete newMap[sessionId]
+            return { parallelOutputMap: newMap }
+          })
+        },
+
+        getParallelOutputState: (sessionId: string) => {
+          return get().parallelOutputMap[sessionId]
         },
       })
     ),

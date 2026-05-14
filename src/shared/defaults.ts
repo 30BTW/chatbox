@@ -109,6 +109,8 @@ export function settings(): Settings {
     compactionThreshold: 0.6,
 
     pauseOnToolCallLimit: true,
+    parallelOutputCount: 3,
+    parallelOutputInterval: 0,
 
     autoLaunch: false,
     autoUpdate: true,
