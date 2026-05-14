@@ -36,10 +36,16 @@ import { useAuthInfoStore } from '@/stores/authInfoStore'
 import { createSession as createSessionStore } from '@/stores/chatStore'
 import { resolveChatboxLicenseDefaultModel } from '@/stores/defaultChatModel'
 import { getHasCompletedFirstSuccessfulChat } from '@/stores/firstSuccessfulChat'
-import { generate, submitNewUserMessage, switchCurrentSession } from '@/stores/sessionActions'
+import {
+  generate,
+  generateParallelOutput,
+  insertMessage,
+  submitNewUserMessage,
+  switchCurrentSession,
+} from '@/stores/sessionActions'
+import { settingsStore, useSettingsStore } from '@/stores/settingsStore'
 import { initEmptyChatSession } from '@/stores/sessionHelpers'
-import { useSettingsStore } from '@/stores/settingsStore'
-import { useUIStore } from '@/stores/uiStore'
+import { uiStore, useUIStore } from '@/stores/uiStore'
 import { getHomeWelcomeCardMode } from '@/utils/homeWelcomeCard'
 import { NewUserScenarioGrid } from './-new-user-scenarios/NewUserScenarioGrid'
 import { type NewUserScenario, newUserScenarios, resolveNewUserScenarioContent } from './-new-user-scenarios/scenarios'
@@ -355,6 +361,27 @@ function Index() {
   const handleSubmit = useCallback(
     async ({ constructedMessage, needGenerating = true, onUserMessageReady, settingsPatch }: InputBoxPayload) => {
       const newSession = await createPersistedChatSession({ settingsPatch })
+
+      // Check if parallel output mode is enabled
+      const parallelMode = uiStore.getState().inputBoxParallelMode
+      if (parallelMode && needGenerating) {
+        const globalSettings = settingsStore.getState().getSettings()
+        const parallelCount = globalSettings.parallelOutputCount ?? 3
+        const parallelInterval = globalSettings.parallelOutputInterval ?? 0
+
+        onUserMessageReady?.()
+        await insertMessage(newSession.id, constructedMessage)
+
+        // Build context directly from initial session messages + inserted user message
+        const contextMessages = [...(session.messages || []), constructedMessage]
+        void generateParallelOutput(newSession.id, contextMessages, {
+          count: parallelCount,
+          interval: parallelInterval,
+        })
+
+        uiStore.getState().setInputBoxParallelMode(false)
+        return
+      }
 
       void submitNewUserMessage(newSession.id, {
         newUserMsg: constructedMessage,

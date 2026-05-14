@@ -84,7 +84,7 @@ import * as chatStore from '@/stores/chatStore'
 import { useSession, useSessionSettings } from '@/stores/chatStore'
 import { useSessionAgentMode } from '@/stores/session/agent-mode'
 import { settingsStore, useSettingsStore } from '@/stores/settingsStore'
-import { useUIStore } from '@/stores/uiStore'
+import { uiStore, useUIStore } from '@/stores/uiStore'
 import { trackEvent } from '@/utils/track'
 import {
   type KnowledgeBase,
@@ -1776,7 +1776,9 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
                 <Tooltip label={inputBoxParallelMode ? t('Parallel Output') + ` (${parallelOutputCount}x)` : t('Parallel Output')} position="top" withArrow disabled={isSmallScreen}>
                   <UnstyledButton
                     onClick={() => {
-                      setInputBoxParallelMode(!inputBoxParallelMode)
+                      const newMode = !inputBoxParallelMode
+                      console.log('[ParallelToggle] Setting parallel mode to:', newMode)
+                      setInputBoxParallelMode(newMode)
                       dom.focusMessageInput()
                     }}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--chatbox-background-tertiary)] transition-colors"
