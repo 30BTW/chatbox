@@ -51,6 +51,7 @@ win:
         - arm64
   verifyUpdateCodeSignature: false
   artifactName: ${productName}-${version}-Setup.${ext}
+  signAndEditExecutable: false
   signtoolOptions:
     sign: null
     signingHashAlgorithms:
