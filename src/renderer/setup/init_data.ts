@@ -12,23 +12,32 @@ import { createSessionMetaRecordsFromLegacyList } from '@/utils/session-utils'
 const log = getLogger('init-data')
 
 // 一次性排序修复标记：已按消息时间修复过会话排序后不再重复执行
-const SORT_REPAIR_MARKER = 'chatbox-sort-order-repair-v1'
+// v2：改用全量会话列表判孤立 + 无阈值全量修复（v1 因分页误判只修了部分）
+const SORT_REPAIR_MARKER = 'chatbox-sort-order-repair-v2'
 
 /**
  * 取会话中最早一条消息的时间戳，用于排序和创建时间展示。
+ * 兼容秒级（10 位）与毫秒级（13 位）两种时间戳，统一归一化为毫秒。
  * 无消息时返回 0，调用方自行 fallback。
  */
 function getEarliestMessageTimestamp(session: Session): number {
+  const toMs = (t: number) => (t < 100000000000 ? t * 1000 : t)
   let earliest = 0
   for (const msg of session.messages ?? []) {
-    if (msg.timestamp && (earliest === 0 || msg.timestamp < earliest)) {
-      earliest = msg.timestamp
+    if (msg.timestamp) {
+      const t = toMs(msg.timestamp)
+      if (earliest === 0 || t < earliest) {
+        earliest = t
+      }
     }
   }
   for (const thread of session.threads ?? []) {
     for (const msg of thread.messages ?? []) {
-      if (msg.timestamp && (earliest === 0 || msg.timestamp < earliest)) {
-        earliest = msg.timestamp
+      if (msg.timestamp) {
+        const t = toMs(msg.timestamp)
+        if (earliest === 0 || t < earliest) {
+          earliest = t
+        }
       }
     }
   }
@@ -76,8 +85,8 @@ async function tryRecoverOrphanedSessions(): Promise<void> {
       return
     }
 
-    // 获取当前会话列表
-    const currentList = await chatStore.listSessionsMeta()
+    // 获取当前会话列表（全量遍历所有分页，避免把第 2+ 页会话误判为孤立）
+    const currentList = await chatStore.listAllSessionsMeta()
     const currentIds = new Set(currentList.map((s) => s.id))
 
     // 找到不在当前列表中的孤立会话
@@ -151,6 +160,10 @@ async function repairSessionSortOrders(): Promise<void> {
     }
 
     const metaStorage = await chatStore.getMetaStorage()
+    // 一次取出全量 meta 记录，避免逐个 getById
+    const allRecords = await metaStorage.getAllIncludingHidden()
+    const recordById = new Map(allRecords.map((r) => [r.id, r]))
+
     let fixed = 0
     for (const key of sessionKeys) {
       try {
@@ -162,12 +175,12 @@ async function repairSessionSortOrders(): Promise<void> {
         if (!earliest) {
           continue
         }
-        const record = await metaStorage.getById(session.id)
+        const record = recordById.get(session.id)
         if (!record) {
           continue
         }
-        // 与消息时间不一致（相差超过 5 分钟）才修复，避免无谓写入
-        if (Math.abs(record.sortOrder - earliest) > 5 * 60 * 1000) {
+        // 与消息时间不一致（含被误写为 Date.now() 的情况）就修复为真实时间
+        if (record.sortOrder !== earliest || record.createdAt !== earliest) {
           await metaStorage.update(session.id, { sortOrder: earliest, createdAt: earliest })
           fixed++
         }
