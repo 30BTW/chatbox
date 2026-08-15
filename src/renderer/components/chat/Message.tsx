@@ -66,7 +66,6 @@ import { useUIStore } from '@/stores/uiStore'
 import '../../static/Block.css'
 import {
   createSessionFromMessages,
-  findMessageLocation,
   generate,
   generateMore,
   isRetryableToolCallStep,

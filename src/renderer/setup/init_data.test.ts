@@ -30,6 +30,7 @@ vi.mock('@/packages/initial_data', () => ({
 vi.mock('@/platform', () => ({
   default: {
     getLocale: vi.fn(() => Promise.resolve('en')),
+    appLog: vi.fn(() => Promise.resolve()),
   },
 }))
 

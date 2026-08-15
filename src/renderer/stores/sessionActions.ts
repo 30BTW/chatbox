@@ -18,7 +18,6 @@ export { createNewFork, deleteFork, expandFork, findMessageLocation, switchFork,
 // Re-export generation operations from session/generation.ts
 export {
   acceptParallelOutputSlot,
-  createLoadingPictures,
   generate,
   generateMore,
   generateMoreInNewFork,

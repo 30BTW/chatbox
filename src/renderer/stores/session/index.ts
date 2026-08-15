@@ -41,7 +41,6 @@ export { createNewFork, deleteFork, expandFork, findMessageLocation, switchFork,
 // Generation operations (8 functions)
 export {
   acceptParallelOutputSlot,
-  createLoadingPictures,
   generate,
   generateMore,
   generateMoreInNewFork,

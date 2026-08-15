@@ -1,4 +1,4 @@
-import { Box, Button, FileButton, Flex, NumberInput, Slider, Stack, Switch, Text, Textarea, Title, Tooltip } from '@mantine/core'
+import { Box, Button, FileButton, Flex, NumberInput, Slider, Stack, Switch, Text, Textarea, Title } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import { chatSessionSettings, getDefaultPrompt } from '@shared/defaults'
 import { MAX_TOOL_CALLS_BEFORE_CONFIRMATION } from '@shared/utils/tool-call-limit-pause'

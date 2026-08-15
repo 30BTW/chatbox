@@ -146,6 +146,10 @@ vi.mock('@/stores/chatStore', () => ({
   getMetaStorage: vi.fn(),
 }))
 
+vi.mock('@/router', () => ({
+  router: { navigate: vi.fn() },
+}))
+
 import {
   isSessionAttachmentRagAuthError,
   isSessionAttachmentRagIndexingError,

@@ -297,14 +297,11 @@ export async function createSessionFromMessages(
   // Create new messages with new IDs
   const { messages: newMessages } = copyMessagesWithMapping(messages)
 
-  const now = Date.now()
   const newSession: Omit<Session, 'id'> = {
     type: 'chat',
     name: options?.title || '',
     messages: newMessages,
     threads: [],
-    createdAt: now,
-    updatedAt: now,
     settings: sourceSession?.settings,
   }
 
